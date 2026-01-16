@@ -160,13 +160,7 @@ io.on('connection', (socket) => {
         });
     });
 
-    socket.on('draw_stroke', ({ roomCode, x, y, type, color, tool }) => {
-        // Broadcast to everyone else in the room
-        socket.to(roomCode).emit('draw_stroke', {
-            playerId: socket.id,
-            x, y, type, color, tool
-        });
-    });
+
 
     socket.on('submit_guess', ({ roomCode, guess }, callback) => {
         const result = gameManager.submitGuess(roomCode, socket.id, guess);

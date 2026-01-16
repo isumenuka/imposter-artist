@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { RefreshCcw, Check, Trash2, PaintBucket, Pen, Undo, Redo } from 'lucide-react';
+import { RefreshCcw, Check, Trash2, Undo, Redo } from 'lucide-react';
 import { Layer } from '../types';
 import socketService from '../services/socketService';
 
@@ -11,32 +11,6 @@ interface CanvasProps {
   previousLayers: Layer[];
   zoom: number;
 }
-
-// Comprehensive 20-color palette for the bucket tool
-const FILL_COLORS = [
-  // Row 1 - Dark/Saturated Colors
-  '#000000', // Black
-  '#4B5563', // Dark Gray
-  '#7F1D1D', // Dark Red
-  '#DC2626', // Red
-  '#EA580C', // Orange
-  '#FACC15', // Yellow
-  '#84CC16', // Lime Green
-  '#06B6D4', // Cyan
-  '#2563EB', // Blue
-  '#9333EA', // Purple
-  // Row 2 - Light/Pastel Colors
-  '#FFFFFF', // White
-  '#D1D5DB', // Light Gray
-  '#92400E', // Brown
-  '#FBCFE8', // Light Pink
-  '#EAB308', // Gold
-  '#BEF264', // Light Green
-  '#A5F3FC', // Light Cyan
-  '#93C5FD', // Light Blue
-  '#6B7280', // Gray-Blue
-  '#E9D5FF', // Light Purple
-];
 
 const Canvas: React.FC<CanvasProps> = ({ roomCode, onConfirm, disabled, strokeColor, previousLayers, zoom }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -53,9 +27,7 @@ const Canvas: React.FC<CanvasProps> = ({ roomCode, onConfirm, disabled, strokeCo
   const [panX, setPanX] = useState(0);
   const [panY, setPanY] = useState(0);
 
-  // Tool state
-  const [activeTool, setActiveTool] = useState<'PEN' | 'FILL'>('PEN');
-  const [fillColor, setFillColor] = useState<string>('#000000');
+  // Tool state (Fixed to PEN now)
   const loadedImagesRef = useRef<(HTMLImageElement | null)[]>([]);
 
   // Undo/Redo state
@@ -63,55 +35,11 @@ const Canvas: React.FC<CanvasProps> = ({ roomCode, onConfirm, disabled, strokeCo
   const [historyStep, setHistoryStep] = useState<number>(-1);
   const MAX_HISTORY = 50;
 
-  // Remote drawing handling
+  // Remote drawing handling - REMOVED for privacy
   useEffect(() => {
-    console.log('🎨 Setting up draw_stroke listener');
-
-    socketService.onDrawStroke((data: any) => {
-      console.log('🖌️ Received draw_stroke event:', data);
-
-      const canvas = canvasRef.current;
-      if (!canvas) {
-        console.warn('⚠️ Canvas not available for remote drawing');
-        return;
-      }
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-
-      const { x, y, type, color, tool } = data;
-
-      if (tool === 'FILL') {
-        console.log('🪣 Remote fill at', x, y, 'color:', color);
-        floodFill(x, y, color, true);
-        return;
-      }
-
-      // Handle pen strokes
-      ctx.save();
-      ctx.strokeStyle = color;
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-      ctx.lineWidth = 5;
-
-      if (type === 'start') {
-        console.log('✏️ Remote stroke start at', x, y);
-        ctx.beginPath();
-        ctx.moveTo(x, y);
-      } else if (type === 'draw') {
-        console.log('✏️ Remote stroke draw to', x, y);
-        ctx.lineTo(x, y);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(x, y);
-      } else if (type === 'end') {
-        console.log('✏️ Remote stroke end');
-        ctx.closePath();
-      }
-      ctx.restore();
-    });
-
+    // We intentionally do NOT listen for draw_stroke events anymore.
+    // Real-time drawing is disabled.
     return () => {
-      console.log('🧹 Cleaning up draw_stroke listener');
       socketService.socket?.off('draw_stroke');
     };
   }, []);
@@ -455,39 +383,31 @@ const Canvas: React.FC<CanvasProps> = ({ roomCode, onConfirm, disabled, strokeCo
   const startDrawing = (e: React.MouseEvent | React.TouchEvent) => {
     if (disabled) return;
 
-    if (activeTool === 'FILL') {
-      // Handle fill on click/tap start
-      const { x, y } = getPointerPos(e);
-      console.log('🪣 Local fill at', x, y);
-      // e.preventDefault(); // Might need this if touch behavior is weird
-      floodFill(x, y, fillColor);
-    } else {
-      // Pen Tool
-      setIsDrawing(true);
-      const { x, y } = getPointerPos(e);
+    // Pen Tool
+    setIsDrawing(true);
+    const { x, y } = getPointerPos(e);
 
-      const canvas = canvasRef.current;
-      const ctx = canvas?.getContext('2d');
-      if (ctx) {
-        ctx.beginPath();
-        ctx.moveTo(x, y);
-        // Draw a single dot immediately so taps work
-        ctx.lineTo(x, y);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(x, y);
-        setHasDrawn(true);
-      }
-
-      console.log('🟢 Emitting draw_stroke START at', x, y);
-      // socketService.emitDrawStroke(roomCode, { x, y, type: 'start', color: strokeColor, tool: 'PEN' });
-      // Also emit the dot draw event immediately
-      // socketService.emitDrawStroke(roomCode, { x, y, type: 'draw', color: strokeColor, tool: 'PEN' });
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext('2d');
+    if (ctx) {
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      // Draw a single dot immediately so taps work
+      ctx.lineTo(x, y);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      setHasDrawn(true);
     }
+
+    console.log('🟢 Emitting draw_stroke START at', x, y);
+    // socketService.emitDrawStroke(roomCode, { x, y, type: 'start', color: strokeColor, tool: 'PEN' });
+    // Also emit the dot draw event immediately
+    // socketService.emitDrawStroke(roomCode, { x, y, type: 'draw', color: strokeColor, tool: 'PEN' });
   };
 
   const stopDrawing = (e: React.MouseEvent | React.TouchEvent) => {
-    if (activeTool === 'PEN' && isDrawing) {
+    if (isDrawing) {
       setIsDrawing(false);
       const { x, y } = getPointerPos(e);
 
@@ -506,7 +426,7 @@ const Canvas: React.FC<CanvasProps> = ({ roomCode, onConfirm, disabled, strokeCo
   };
 
   const draw = (e: React.MouseEvent | React.TouchEvent) => {
-    if (disabled || activeTool === 'FILL') return;
+    if (disabled) return;
     if (!isDrawing) return;
 
     const canvas = canvasRef.current;
@@ -569,44 +489,10 @@ const Canvas: React.FC<CanvasProps> = ({ roomCode, onConfirm, disabled, strokeCo
           {/* Tool Selector & Color Picker Container */}
           <div className="flex flex-col landscape:flex-col-reverse lg:landscape:flex-col items-center gap-2">
 
-            {/* Color Picker (conditionally rendered) */}
-            {activeTool === 'FILL' && (
-              <div className="flex flex-col sm:flex-row landscape:flex-col lg:landscape:flex-row items-center gap-1 sm:gap-2 bg-white/95 backdrop-blur-sm border-2 border-black p-2 rounded-lg shadow-xl w-full sm:w-auto landscape:w-auto lg:landscape:w-auto">
-                <div className="flex flex-wrap landscape:flex-col lg:landscape:flex-row lg:landscape:flex-wrap gap-1 p-1 justify-center max-w-[340px] landscape:max-w-none landscape:max-h-[60vh] landscape:overflow-y-auto lg:landscape:max-w-[340px] lg:landscape:max-h-none lg:landscape:overflow-y-visible scrollbar-hide">
-                  {FILL_COLORS.map(color => (
-                    <button
-                      key={color}
-                      onClick={() => setFillColor(color)}
-                      className={`w-7 h-7 sm:w-7 sm:h-7 rounded-full border-2 flex-shrink-0 transition-transform ${fillColor === color ? 'scale-110 ring-2 ring-black ring-offset-1 border-black' : 'border-gray-300 hover:scale-105'}`}
-                      style={{ backgroundColor: color }}
-                      aria-label={`Select color ${color}`}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
+
 
             {/* Main Tools & Actions Group */}
             <div className="flex flex-col sm:flex-row landscape:flex-col lg:landscape:flex-row items-center gap-1 sm:gap-2 bg-white/95 backdrop-blur-sm border-2 border-black p-2 rounded-lg shadow-xl w-full sm:w-auto landscape:w-auto lg:landscape:w-auto">
-              <div className="flex gap-1 p-1 bg-gray-100 rounded-lg landscape:flex-col lg:landscape:flex-row">
-                <button
-                  onClick={() => setActiveTool('PEN')}
-                  className={`p-2 sm:p-2 rounded-md transition ${activeTool === 'PEN' ? 'bg-white shadow-sm text-black' : 'text-gray-500 hover:bg-gray-200'}`}
-                  title="Pen Tool (Fixed Color)"
-                >
-                  <Pen size={20} />
-                </button>
-                <button
-                  onClick={() => setActiveTool('FILL')}
-                  className={`p-2 sm:p-2 rounded-md transition ${activeTool === 'FILL' ? 'bg-white shadow-sm text-black' : 'text-gray-500 hover:bg-gray-200'}`}
-                  title="Bucket Fill Tool"
-                >
-                  <PaintBucket size={20} />
-                </button>
-              </div>
-
-              <div className="hidden sm:block h-8 w-px bg-gray-300 mx-1 landscape:h-px landscape:w-8 landscape:my-1 lg:landscape:w-px lg:landscape:h-8 lg:landscape:my-0"></div>
-
               {/* Undo/Redo/Clear/Submit */}
               <div className="flex flex-wrap landscape:flex-col lg:landscape:flex-row justify-center gap-1.5 landscape:gap-2">
                 <div className="flex gap-1.5 landscape:gap-2 landscape:flex-col lg:landscape:flex-row">
@@ -671,7 +557,7 @@ const Canvas: React.FC<CanvasProps> = ({ roomCode, onConfirm, disabled, strokeCo
               width: '800px',
               height: '600px',
               transform: `scale(${effectiveZoom})`,
-              cursor: activeTool === 'FILL' ? 'crosshair' : 'default',
+              cursor: 'default',
             }}
           >
 

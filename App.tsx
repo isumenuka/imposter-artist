@@ -208,13 +208,13 @@ const App: React.FC = () => {
 
     const handleForceVote = () => {
         if (!room) return;
-        if (confirm("⚠️ Are you sure you want to end the game early and start voting?")) {
-            socketService.forceVote(room.roomCode, (response: any) => {
-                if (!response.success) {
-                    alert(response.error || "Failed to force vote");
-                }
-            });
-        }
+        // Immediate action for debugging responsiveness
+        console.log('🛑 Stop button triggered');
+        socketService.forceVote(room.roomCode, (response: any) => {
+            if (!response.success) {
+                alert("Error: " + (response.error || "Unknown"));
+            }
+        });
     };
 
     const copyRoomCode = () => {
@@ -519,7 +519,7 @@ const App: React.FC = () => {
                 </div>
 
                 {/* Landscape Player List Toggle - Mobile Only */}
-                <div className="hidden landscape:flex lg:landscape:hidden absolute top-4 left-4 z-40 bg-black/50 backdrop-blur-sm p-1 rounded-lg gap-2 items-center">
+                <div className="hidden landscape:flex lg:landscape:hidden absolute top-4 left-4 z-50 bg-black/50 backdrop-blur-sm p-1 rounded-lg gap-2 items-center">
                     <div className="px-3 py-1 bg-black text-white rounded text-xs font-bold">
                         {myRole}
                     </div>
@@ -529,10 +529,11 @@ const App: React.FC = () => {
                     {/* Mobile Force Vote */}
                     {isHost && room.phase === GamePhase.DRAWING && (
                         <button
-                            onClick={handleForceVote}
-                            className="flex items-center gap-1 px-2 py-1 bg-red-600 text-white rounded text-xs font-bold ml-1 active:scale-95"
+                            onClick={(e) => { e.stopPropagation(); handleForceVote(); }}
+                            onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); handleForceVote(); }}
+                            className="flex items-center gap-1 px-3 py-2 bg-red-600 text-white rounded shadow-lg text-xs font-bold ml-1 active:bg-red-700"
                         >
-                            <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
+                            <span className="w-2 h-2 rounded-full bg-white animate-pulse"></span>
                             STOP
                         </button>
                     )}
@@ -550,13 +551,12 @@ const App: React.FC = () => {
                                     onConfirm={submitDrawing}
                                     disabled={!isMyTurn || (myPlayer?.isLocked || false)}
                                     strokeColor={myPlayer?.color || '#000'}
-                                    previousLayers={room.drawings.map(d => ({
+                                    previousLayers={(room.drawings || []).map(d => ({
                                         playerId: d.playerId,
                                         imageUrl: d.data,
                                         round: d.round
                                     }))}
                                     zoom={zoom}
-                                    isHost={room.hostId === myPlayerId}
                                 />
                             </div>
                         )}
