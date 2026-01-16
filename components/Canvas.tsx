@@ -253,7 +253,7 @@ const Canvas: React.FC<CanvasProps> = ({ roomCode, onConfirm, disabled, strokeCo
     if (!ctx) return;
 
     if (!isRemote) {
-      socketService.emitDrawStroke(roomCode, { x: startX, y: startY, type: 'fill', color: fillHex, tool: 'FILL' });
+      // socketService.emitDrawStroke(roomCode, { x: startX, y: startY, type: 'fill', color: fillHex, tool: 'FILL' });
     }
 
     // 1. Create composite canvas for boundary checking
@@ -471,17 +471,18 @@ const Canvas: React.FC<CanvasProps> = ({ roomCode, onConfirm, disabled, strokeCo
       if (ctx) {
         ctx.beginPath();
         ctx.moveTo(x, y);
+        // Draw a single dot immediately so taps work
+        ctx.lineTo(x, y);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        setHasDrawn(true);
       }
 
       console.log('🟢 Emitting draw_stroke START at', x, y);
-      socketService.emitDrawStroke(roomCode, { x, y, type: 'start', color: strokeColor, tool: 'PEN' });
-      // We don't verify if local draw worked, we just emit.
-      // But we should probably also update local state if we want to separate logic?
-      // For now, let's keep local draw sync.
-
-      // Actually, standard practice: Draw locally, emit to others.
-      // My local `draw` function handles the lineTo/stroke.
-      // But startDrawing needs to set the initial point for the path.
+      // socketService.emitDrawStroke(roomCode, { x, y, type: 'start', color: strokeColor, tool: 'PEN' });
+      // Also emit the dot draw event immediately
+      // socketService.emitDrawStroke(roomCode, { x, y, type: 'draw', color: strokeColor, tool: 'PEN' });
     }
   };
 
@@ -491,7 +492,7 @@ const Canvas: React.FC<CanvasProps> = ({ roomCode, onConfirm, disabled, strokeCo
       const { x, y } = getPointerPos(e);
 
       console.log('🔴 Emitting draw_stroke END');
-      socketService.emitDrawStroke(roomCode, { x, y, type: 'end', color: strokeColor, tool: 'PEN' });
+      // socketService.emitDrawStroke(roomCode, { x, y, type: 'end', color: strokeColor, tool: 'PEN' });
 
       const canvas = canvasRef.current;
       if (canvas) {
@@ -530,7 +531,7 @@ const Canvas: React.FC<CanvasProps> = ({ roomCode, onConfirm, disabled, strokeCo
     ctx.moveTo(x, y);
     setHasDrawn(true);
 
-    socketService.emitDrawStroke(roomCode, { x, y, type: 'draw', color: strokeColor, tool: 'PEN' });
+    // socketService.emitDrawStroke(roomCode, { x, y, type: 'draw', color: strokeColor, tool: 'PEN' });
   };
 
   const clear = () => {
@@ -693,9 +694,9 @@ const Canvas: React.FC<CanvasProps> = ({ roomCode, onConfirm, disabled, strokeCo
               onMouseUp={stopDrawing}
               onMouseMove={draw}
               onMouseLeave={stopDrawing}
-              onTouchStart={startDrawing}
-              onTouchEnd={stopDrawing}
-              onTouchMove={draw}
+              onTouchStart={handleTouchStart}
+              onTouchEnd={handleTouchEnd}
+              onTouchMove={handleTouchMove}
             />
 
             {disabled && (
