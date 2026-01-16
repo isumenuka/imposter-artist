@@ -1,0 +1,5 @@
+{
+  "name": "Imposter Artist",
+  "description": "A social deduction drawing game where Artists draw a secret word, an Imposter tries to fake it, and a hidden Word Giver tries to guide the Artists without getting caught.",
+  "requestFramePermissions": []
+}
