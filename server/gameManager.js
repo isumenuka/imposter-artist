@@ -123,6 +123,12 @@ export class GameManager {
     if (room.wordSubmissions.length === room.players.length) {
       console.log('✅ All words submitted! Selecting imposter and word...');
 
+      // Randomize player order (Fisher-Yates shuffle) for drawing turns
+      for (let i = room.players.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [room.players[i], room.players[j]] = [room.players[j], room.players[i]];
+      }
+
       // Randomly select imposter first
       const randomIndex = Math.floor(Math.random() * room.players.length);
       room.imposterId = room.players[randomIndex].id;

@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { RefreshCcw, Check, Trash2, Undo, Redo } from 'lucide-react';
+import { RefreshCcw, Check, Trash2, Undo, Redo, Pen, Minus, Circle } from 'lucide-react';
 import { Layer } from '../types';
 import socketService from '../services/socketService';
 
@@ -27,7 +27,11 @@ const Canvas: React.FC<CanvasProps> = ({ roomCode, onConfirm, disabled, strokeCo
   const [panX, setPanX] = useState(0);
   const [panY, setPanY] = useState(0);
 
-  // Tool state (Fixed to PEN now)
+  // Tool state
+  const [tool, setTool] = useState<'PEN' | 'LINE' | 'CIRCLE'>('PEN');
+  const dragStartImageData = useRef<ImageData | null>(null);
+  const [startPos, setStartPos] = useState<{ x: number, y: number } | null>(null);
+
   const loadedImagesRef = useRef<(HTMLImageElement | null)[]>([]);
 
   // Undo/Redo state
@@ -383,13 +387,14 @@ const Canvas: React.FC<CanvasProps> = ({ roomCode, onConfirm, disabled, strokeCo
   const startDrawing = (e: React.MouseEvent | React.TouchEvent) => {
     if (disabled) return;
 
-    // Pen Tool
     setIsDrawing(true);
     const { x, y } = getPointerPos(e);
 
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext('2d');
-    if (ctx) {
+    if (!ctx) return;
+
+    if (tool === 'PEN') {
       ctx.beginPath();
       ctx.moveTo(x, y);
       // Draw a single dot immediately so taps work
@@ -398,12 +403,14 @@ const Canvas: React.FC<CanvasProps> = ({ roomCode, onConfirm, disabled, strokeCo
       ctx.beginPath();
       ctx.moveTo(x, y);
       setHasDrawn(true);
-    }
 
-    console.log('🟢 Emitting draw_stroke START at', x, y);
-    // socketService.emitDrawStroke(roomCode, { x, y, type: 'start', color: strokeColor, tool: 'PEN' });
-    // Also emit the dot draw event immediately
-    // socketService.emitDrawStroke(roomCode, { x, y, type: 'draw', color: strokeColor, tool: 'PEN' });
+      console.log('🟢 Emitting draw_stroke START at', x, y);
+      // socketService.emitDrawStroke(roomCode, { x, y, type: 'start', color: strokeColor, tool: 'PEN' });
+    } else {
+      // For Line and Circle, we save the state to restore it during drag
+      dragStartImageData.current = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      setStartPos({ x, y });
+    }
   };
 
   const stopDrawing = (e: React.MouseEvent | React.TouchEvent) => {
@@ -418,6 +425,14 @@ const Canvas: React.FC<CanvasProps> = ({ roomCode, onConfirm, disabled, strokeCo
       if (canvas) {
         const ctx = canvas.getContext('2d');
         ctx?.beginPath(); // Reset path locally
+
+        // If we were drawing a shape, finalize it (it's already drawn in the last draw call, 
+        // effectively we just need to ensure we mark as drawn and clear temp state)
+        if (tool !== 'PEN' && startPos) {
+          setHasDrawn(true);
+          setStartPos(null);
+          dragStartImageData.current = null;
+        }
       }
 
       // Save state after completing a stroke
@@ -445,13 +460,27 @@ const Canvas: React.FC<CanvasProps> = ({ roomCode, onConfirm, disabled, strokeCo
 
     const { x, y } = getPointerPos(e);
 
-    ctx.lineTo(x, y);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-    setHasDrawn(true);
+    if (tool === 'PEN') {
+      ctx.lineTo(x, y);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      setHasDrawn(true);
+      // socketService.emitDrawStroke(roomCode, { x, y, type: 'draw', color: strokeColor, tool: 'PEN' });
+    } else if (startPos && dragStartImageData.current) {
+      // Restore original state
+      ctx.putImageData(dragStartImageData.current, 0, 0);
 
-    // socketService.emitDrawStroke(roomCode, { x, y, type: 'draw', color: strokeColor, tool: 'PEN' });
+      ctx.beginPath();
+      if (tool === 'LINE') {
+        ctx.moveTo(startPos.x, startPos.y);
+        ctx.lineTo(x, y);
+      } else if (tool === 'CIRCLE') {
+        const radius = Math.sqrt(Math.pow(x - startPos.x, 2) + Math.pow(y - startPos.y, 2));
+        ctx.arc(startPos.x, startPos.y, radius, 0, 2 * Math.PI);
+      }
+      ctx.stroke();
+    }
   };
 
   const clear = () => {
@@ -493,6 +522,32 @@ const Canvas: React.FC<CanvasProps> = ({ roomCode, onConfirm, disabled, strokeCo
 
             {/* Main Tools & Actions Group */}
             <div className="flex flex-col sm:flex-row landscape:flex-col lg:landscape:flex-row items-center gap-1 sm:gap-2 bg-white/95 backdrop-blur-sm border-2 border-black p-2 rounded-lg shadow-xl w-full sm:w-auto landscape:w-auto lg:landscape:w-auto">
+
+              {/* Tool Selection */}
+              <div className="flex gap-1.5 landscape:gap-2 landscape:flex-col lg:landscape:flex-row border-r-2 border-gray-200 pr-2">
+                <button
+                  onClick={() => setTool('PEN')}
+                  className={`flex items-center justify-center p-2.5 sm:p-2 border-2 text-sm rounded-md transition shadow-sm active:translate-y-px min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 ${tool === 'PEN' ? 'bg-black text-white border-black' : 'bg-gray-100 border-gray-900 text-black hover:bg-gray-200'}`}
+                  title="Pen Tool"
+                >
+                  <Pen size={20} className="sm:w-4 sm:h-4" />
+                </button>
+                <button
+                  onClick={() => setTool('LINE')}
+                  className={`flex items-center justify-center p-2.5 sm:p-2 border-2 text-sm rounded-md transition shadow-sm active:translate-y-px min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 ${tool === 'LINE' ? 'bg-black text-white border-black' : 'bg-gray-100 border-gray-900 text-black hover:bg-gray-200'}`}
+                  title="Line Tool"
+                >
+                  <Minus size={20} className="sm:w-4 sm:h-4 transform -rotate-45" />
+                </button>
+                <button
+                  onClick={() => setTool('CIRCLE')}
+                  className={`flex items-center justify-center p-2.5 sm:p-2 border-2 text-sm rounded-md transition shadow-sm active:translate-y-px min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 ${tool === 'CIRCLE' ? 'bg-black text-white border-black' : 'bg-gray-100 border-gray-900 text-black hover:bg-gray-200'}`}
+                  title="Circle Tool"
+                >
+                  <Circle size={20} className="sm:w-4 sm:h-4" />
+                </button>
+              </div>
+
               {/* Undo/Redo/Clear/Submit */}
               <div className="flex flex-wrap landscape:flex-col lg:landscape:flex-row justify-center gap-1.5 landscape:gap-2">
                 <div className="flex gap-1.5 landscape:gap-2 landscape:flex-col lg:landscape:flex-row">
